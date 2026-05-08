@@ -602,6 +602,138 @@
     .timers-grid { grid-template-columns: 1fr; }
   }
 
+  /* ── Cross-tab timer banner ── */
+  .timer-banner {
+    display: none;
+    margin-bottom: 1rem;
+    border: 0.5px solid var(--border-med);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .timer-banner.visible { display: block; }
+
+  .timer-banner-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 14px;
+    background: var(--surface);
+  }
+  .timer-banner-row + .timer-banner-row { border-top: 0.5px solid var(--border); }
+
+  .banner-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .banner-dot.running { background: var(--green-solid); animation: pulse 1.2s infinite; }
+  .banner-dot.paused  { background: var(--amber); }
+
+  .banner-proj {
+    font-size: 12px; font-weight: 600; color: var(--hyland-navy);
+    white-space: nowrap; flex-shrink: 0;
+  }
+  [data-theme="dark"] .banner-proj { color: var(--text); }
+
+  .banner-sep { font-size: 12px; color: var(--text-3); flex-shrink: 0; }
+
+  .banner-task {
+    font-size: 12px; color: var(--text-2);
+    flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    min-width: 0;
+  }
+
+  .banner-time {
+    font-family: var(--mono); font-size: 14px; font-weight: 500;
+    color: var(--text); white-space: nowrap; flex-shrink: 0;
+  }
+  .banner-time.paused { color: var(--amber); }
+
+  .banner-btns { display: flex; gap: 4px; flex-shrink: 0; }
+
+  .btn-banner {
+    height: 26px; padding: 0 9px;
+    border: 0.5px solid var(--border-med); border-radius: var(--radius-xs);
+    background: transparent; font-family: var(--sans);
+    font-size: 11px; font-weight: 500; color: var(--text-2);
+    cursor: pointer; transition: background 0.1s, color 0.1s, border-color 0.1s;
+    white-space: nowrap;
+  }
+  .btn-banner:hover { background: var(--surface2); color: var(--text); }
+  .btn-banner.stop:hover { background: var(--red-bg); color: var(--red); border-color: rgba(155,35,53,0.28); }
+
+  /* ── Project weekly targets ── */
+  .proj-target-row {
+    display: flex; align-items: center; gap: 4px; margin-top: 3px;
+  }
+  .proj-target-label { font-size: 10px; color: var(--text-3); }
+  .proj-target-input {
+    font-family: var(--sans); font-size: 12px;
+    width: 48px; height: 24px; padding: 0 6px;
+    border: 0.5px solid var(--border-med); border-radius: var(--radius-xs);
+    background: var(--surface); color: var(--text);
+    outline: none; transition: border-color 0.12s;
+    -moz-appearance: textfield;
+  }
+  .proj-target-input::-webkit-outer-spin-button,
+  .proj-target-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .proj-target-input:focus { border-color: var(--hyland-navy-mid); }
+
+  /* Target progress in weekly table */
+  .target-cell { white-space: nowrap; }
+  .target-fraction { font-family: var(--mono); font-size: 12px; }
+  .target-fraction.on-track { color: var(--green-solid); }
+  .target-fraction.at-risk   { color: #8a6200; }
+  .target-fraction.behind    { color: var(--red); }
+  .target-mini-bar {
+    height: 3px; border-radius: 99px;
+    background: var(--surface2); margin-top: 3px; width: 60px; overflow: hidden;
+  }
+  .target-mini-fill { height: 100%; border-radius: 99px; transition: width 0.4s; }
+
+  /* ── Task autocomplete ── */
+  .ac-wrap { position: relative; }
+  .ac-dropdown {
+    position: absolute; top: calc(100% + 2px); left: 0; right: 0;
+    background: var(--surface);
+    border: 0.5px solid var(--border-med);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.13);
+    z-index: 60;
+    max-height: 190px;
+    overflow-y: auto;
+    display: none;
+  }
+  .ac-dropdown.open { display: block; }
+  .ac-item {
+    padding: 7px 10px;
+    font-size: 12px;
+    color: var(--text);
+    cursor: pointer;
+    border-bottom: 0.5px solid var(--border);
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ac-item:last-child { border-bottom: none; }
+  .ac-item:hover { background: var(--hyland-navy-soft); }
+  [data-theme="dark"] .ac-item:hover { background: var(--surface2); }
+
+  /* ── PSA logged checkbox ── */
+  .psa-btn {
+    width: 24px; height: 24px;
+    border-radius: var(--radius-xs);
+    border: 1.5px solid var(--border-med);
+    background: transparent;
+    cursor: pointer;
+    font-size: 13px;
+    color: transparent;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+    flex-shrink: 0;
+  }
+  .psa-btn:hover { border-color: var(--green); background: var(--green-bg); color: var(--green); }
+  .psa-btn.psa-checked { border-color: var(--green); background: var(--green-bg); color: var(--green); }
+  .psa-logged-row td { opacity: 0.55; }
+  .psa-logged-row td:last-child { opacity: 1; }
+
   /* ── Progress meters ── */
   .meter-card {
     background: var(--surface);
@@ -948,6 +1080,9 @@
     <button class="tab"        id="tab-summary" onclick="switchTab('summary')">Weekly Summary</button>
   </div>
 
+  <!-- Cross-tab timer banner (hidden on Timers tab) -->
+  <div class="timer-banner" id="timer-banner"></div>
+
   <!-- TIMERS PANE -->
   <div id="pane-timer">
     <div class="timers-grid">
@@ -963,7 +1098,12 @@
         </div>
         <div class="field">
           <label class="label">Task</label>
-          <textarea id="task-input-0" placeholder="What are you working on?"></textarea>
+          <div class="ac-wrap">
+            <textarea id="task-input-0" placeholder="What are you working on?"
+              oninput="showAC(0, this.value)"
+              onblur="hideAC(0)"></textarea>
+            <div class="ac-dropdown" id="task-ac-0"></div>
+          </div>
         </div>
         <div class="timer-display" id="timer-display-0">00:00:00</div>
         <div class="timer-sub" id="timer-sub-0">Enter a task and start the timer</div>
@@ -986,7 +1126,12 @@
         </div>
         <div class="field">
           <label class="label">Task</label>
-          <textarea id="task-input-1" placeholder="What are you working on?"></textarea>
+          <div class="ac-wrap">
+            <textarea id="task-input-1" placeholder="What are you working on?"
+              oninput="showAC(1, this.value)"
+              onblur="hideAC(1)"></textarea>
+            <div class="ac-dropdown" id="task-ac-1"></div>
+          </div>
         </div>
         <div class="timer-display" id="timer-display-1">00:00:00</div>
         <div class="timer-sub" id="timer-sub-1">Enter a task and start the timer</div>
@@ -1205,6 +1350,22 @@
       </div>
 
       <div class="settings-section">
+        <div class="settings-section-title">Targets</div>
+        <div class="toggle-row" style="justify-content:space-between;">
+          <span class="toggle-label">Billable utilization target</span>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <input type="number" id="util-target-input" min="0" max="100" step="5"
+              style="width:54px;height:28px;font-size:13px;padding:0 6px;border:0.5px solid var(--border-med);border-radius:var(--radius-xs);background:var(--surface);color:var(--text);outline:none;font-family:var(--sans);"
+              onchange="setUtilTarget(this.value)">
+            <span style="font-size:13px;color:var(--text-2);">%</span>
+          </div>
+        </div>
+        <div style="font-size:10px;color:var(--text-3);margin-top:6px;padding:0 2px;">
+          Green ≥ target · Amber ≥ target − 20% · Red below
+        </div>
+      </div>
+
+      <div class="settings-section">
         <div class="settings-section-title">Projects</div>
         <div id="settings-proj-list"></div>
         <div class="add-proj-form">
@@ -1262,6 +1423,8 @@ let state = {
   nextId:        3,
   activeProject: [1, 2],
   log:           [],
+  settings:      { utilTarget: 80 },
+  psaLogged:     {},
 };
 
 const timers = [0, 1].map(() => ({
@@ -1300,6 +1463,8 @@ function loadState() {
     if (s.projects)      state.projects      = s.projects;
     if (s.nextId)        state.nextId        = s.nextId;
     if (s.activeProject) state.activeProject = s.activeProject;
+    if (s.settings)      state.settings      = { ...state.settings, ...s.settings };
+    if (s.psaLogged)     state.psaLogged     = s.psaLogged;
     if (s.log) {
       const days = new Set(weekDays());
       state.log = s.log.filter(e => days.has(e.date));
@@ -1311,6 +1476,7 @@ function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({
     projects: state.projects, nextId: state.nextId,
     activeProject: state.activeProject, log: state.log,
+    settings: state.settings, psaLogged: state.psaLogged,
   }));
 }
 
@@ -1409,6 +1575,7 @@ function startTimer(t) {
   applyTimerUI(t, 'running');
   ts.interval = setInterval(() => {
     document.getElementById('timer-display-' + t).textContent = fmtElapsed(getElapsedMs(t));
+    renderTimerBanner();
   }, 1000);
 }
 
@@ -1420,6 +1587,7 @@ function pauseTimer(t) {
   ts.running = false; ts.paused = true; ts.startTime = null;
   document.getElementById('timer-sub-' + t).textContent = 'Paused — click Resume to continue';
   applyTimerUI(t, 'paused');
+  renderTimerBanner();
 }
 
 function resumeTimer(t) {
@@ -1432,7 +1600,9 @@ function resumeTimer(t) {
   applyTimerUI(t, 'running');
   ts.interval = setInterval(() => {
     document.getElementById('timer-display-' + t).textContent = fmtElapsed(getElapsedMs(t));
+    renderTimerBanner();
   }, 1000);
+  renderTimerBanner();
 }
 
 function stopTimer(t) {
@@ -1462,6 +1632,7 @@ function stopTimer(t) {
     : 'Too short to log';
   document.getElementById('task-input-' + t).value = '';
   applyTimerUI(t, 'idle');
+  renderTimerBanner();
 
   document.getElementById('log-count').textContent = todayEntries().length;
   renderDailyMeter();
@@ -1481,13 +1652,49 @@ function discardTimer(t) {
   document.getElementById('timer-sub-' + t).textContent = 'Discarded';
   document.getElementById('task-input-' + t).value = '';
   applyTimerUI(t, 'idle');
+  renderTimerBanner();
 }
+// ── Cross-tab timer banner ────────────────────
+function renderTimerBanner() {
+  const banner = document.getElementById('timer-banner');
+  const active = [0, 1].filter(t => timers[t].running || timers[t].paused);
+
+  if (activeTab === 'timer' || active.length === 0) {
+    banner.classList.remove('visible');
+    banner.innerHTML = '';
+    return;
+  }
+
+  banner.classList.add('visible');
+  banner.innerHTML = active.map(t => {
+    const ts       = timers[t];
+    const proj     = currentProject(t);
+    const task     = document.getElementById('task-input-' + t)?.value?.trim() || '';
+    const elapsed  = fmtElapsed(getElapsedMs(t));
+    const isPaused = ts.paused;
+    const toggleBtn = isPaused
+      ? `<button class="btn-banner" onclick="resumeTimer(${t})">▶ Resume</button>`
+      : `<button class="btn-banner" onclick="pauseTimer(${t})">⏸ Pause</button>`;
+    return `<div class="timer-banner-row">
+      <div class="banner-dot ${isPaused ? 'paused' : 'running'}"></div>
+      <span class="banner-proj">T${t + 1} · ${proj.name}</span>
+      ${task ? `<span class="banner-sep">—</span><span class="banner-task">${task}</span>` : '<span class="banner-task"></span>'}
+      <span class="banner-time ${isPaused ? 'paused' : ''}">${elapsed}</span>
+      <div class="banner-btns">
+        ${toggleBtn}
+        <button class="btn-banner stop" onclick="stopTimer(${t})">■ Log</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 function switchTab(tab) {
   activeTab = tab;
   ['timer', 'log', 'daily', 'summary'].forEach(t => {
     document.getElementById('pane-' + t).style.display = t === tab ? '' : 'none';
     document.getElementById('tab-'  + t).classList.toggle('active', t === tab);
   });
+  renderTimerBanner();
   if (tab === 'log')     renderLogTab();
   if (tab === 'daily')   renderDailySummary();
   if (tab === 'summary') renderSummary();
@@ -1503,8 +1710,10 @@ function calcUtil(entries) {
 
 function utilClass(pct) {
   if (pct === null) return '';
-  if (pct >= 80) return 'high';
-  if (pct >= 60) return 'mid';
+  const target = state.settings?.utilTarget ?? 80;
+  const mid    = Math.max(target - 20, 0);
+  if (pct >= target) return 'high';
+  if (pct >= mid)    return 'mid';
   return 'low';
 }
 
@@ -1646,6 +1855,15 @@ function clearSelectedDay() {
 // ── Daily Summary ─────────────────────────────
 let dailySummaryFilter = null;
 
+function psaKey(dateKey, projectId) { return `${dateKey}_${projectId}`; }
+
+function togglePSA(dateKey, projectId) {
+  const k = psaKey(dateKey, projectId);
+  state.psaLogged[k] = !state.psaLogged[k];
+  saveState();
+  renderDailySummary();
+}
+
 function setDailySummaryDay(d) { dailySummaryFilter = d; renderDailySummary(); }
 
 function renderDailySummary() {
@@ -1698,6 +1916,7 @@ function renderDailySummary() {
     <th>Tasks</th>
     <th class="right" style="width:12%">Time</th>
     <th class="right" style="width:15%">Type</th>
+    <th class="right" style="width:52px;" title="Mark as logged in PSA">PSA</th>
     <th style="width:36px;"></th>
   </tr></thead><tbody>`;
 
@@ -1705,11 +1924,17 @@ function renderDailySummary() {
     const g       = grouped[pid];
     const idsAttr = JSON.stringify(g.ids).replace(/"/g, '&quot;');
     const taskStr = g.tasks.join(', ');
-    html += `<tr>
+    const logged  = !!state.psaLogged[psaKey(filterDate, pid)];
+    html += `<tr class="${logged ? 'psa-logged-row' : ''}">
       <td><div class="log-project">${g.projectName}</div></td>
       <td style="color:var(--text-2);line-height:1.5;font-size:13px;">${taskStr || '—'}</td>
       <td class="mono">${fmtMins(g.minutes)}</td>
       <td class="right"><span class="badge ${g.billable ? 'badge-bill' : 'badge-nonbill'}">${g.billable ? 'Billable' : 'Non-bill.'}</span></td>
+      <td class="right">
+        <button class="psa-btn ${logged ? 'psa-checked' : ''}"
+          onclick="togglePSA('${filterDate}', ${pid})"
+          title="${logged ? 'Logged to PSA — click to unmark' : 'Mark as logged to PSA'}">✓</button>
+      </td>
       <td class="actions">
         <div class="row-actions">
           <button class="btn-row-action copy" data-ids="${idsAttr}" onclick="copyGroupTasks(this)" title="Copy tasks">⎘</button>
@@ -1749,7 +1974,7 @@ function renderSummary() {
   const projMap = {};
   weekLog.forEach(e => {
     if (!projMap[e.projectId])
-      projMap[e.projectId] = { name: e.projectName, billable: e.billable, days: {}, total: 0 };
+      projMap[e.projectId] = { projectId: e.projectId, name: e.projectName, billable: e.billable, days: {}, total: 0 };
     projMap[e.projectId].days[e.date]  = (projMap[e.projectId].days[e.date] || 0) + e.minutes;
     projMap[e.projectId].total        += e.minutes;
   });
@@ -1771,16 +1996,37 @@ function renderSummary() {
     const isTod = d === today;
     html += `<th class="${isTod ? 'today-col' : ''}">${DAY_NAMES[new Date(d+'T12:00:00').getDay()]}<br>${new Date(d+'T12:00:00').getDate()}</th>`;
   });
-  html += '<th>Total</th></tr></thead><tbody>';
+  html += '<th>Total</th><th>Target</th></tr></thead><tbody>';
 
   projList.forEach(p => {
+    const projDef = state.projects.find(pr => pr.id === p.projectId);
+    const target  = projDef?.weeklyTargetMins || null;
+
     html += `<tr><td>${p.name}<br><span style="font-size:10px;font-weight:400;color:var(--text-3);">${p.billable ? 'Billable' : 'Non-bill.'}</span></td>`;
     days.forEach(d => {
       const mins  = p.days[d] || 0;
       const isTod = d === today;
       html += `<td class="${isTod ? 'today-col' : ''} ${!mins ? 'zero' : ''}">${mins ? fmtMins(mins) : '—'}</td>`;
     });
-    html += `<td style="color:var(--hyland-navy);font-weight:600;">${fmtMins(p.total)}</td></tr>`;
+
+    // Total cell
+    html += `<td style="color:var(--hyland-navy);font-weight:600;">${fmtMins(p.total)}</td>`;
+
+    // Target cell
+    if (target) {
+      const pct     = Math.min(p.total / target * 100, 100);
+      const over    = p.total >= target;
+      const cls     = over ? 'on-track' : (pct >= 60 ? 'at-risk' : 'behind');
+      const barClr  = over ? 'var(--green-solid)' : (pct >= 60 ? '#c8930a' : 'var(--red)');
+      html += `<td class="target-cell">
+        <span class="target-fraction ${cls}">${fmtMins(p.total)} / ${fmtMins(target)}</span>
+        <div class="target-mini-bar"><div class="target-mini-fill" style="width:${pct}%;background:${barClr};"></div></div>
+      </td>`;
+    } else {
+      html += `<td style="color:var(--text-3);font-size:11px;">No target</td>`;
+    }
+
+    html += '</tr>';
   });
 
   html += '<tr class="total-row"><td>Day total</td>';
@@ -1789,7 +2035,7 @@ function renderSummary() {
     const isTod = d === today;
     html += `<td class="${isTod ? 'today-col' : ''} ${!mins ? 'zero' : ''}">${mins ? fmtMins(mins) : '—'}</td>`;
   });
-  html += `<td>${fmtMins(total)}</td></tr>`;
+  html += `<td>${fmtMins(total)}</td><td></td></tr>`;
   html += '</tbody></table>';
   container.innerHTML = html;
 }
@@ -1826,6 +2072,7 @@ function copyTask(btn, entryId) {
 function resetWeek() {
   if (!confirm('Clear all logged entries for this entire week? This cannot be undone.')) return;
   state.log = [];
+  state.psaLogged = {};
   saveState();
   renderDailyMeter();
   renderLogTab();
@@ -2057,9 +2304,55 @@ function init() {
 }
 
 // init() called below after all functions are defined
+function setUtilTarget(val) {
+  const n = parseInt(val);
+  state.settings.utilTarget = (!val || isNaN(n)) ? 80 : Math.min(100, Math.max(0, n));
+  saveState();
+  renderDailyMeter();
+  if (activeTab === 'log')     renderLogTab();
+  if (activeTab === 'daily')   renderDailySummary();
+  if (activeTab === 'summary') renderSummary();
+}
+
+// ── Task autocomplete ─────────────────────────
+let acMatches = [[], []];
+
+function getTaskHistory() {
+  const seen = new Set();
+  return [...state.log]
+    .reverse()
+    .map(e => e.task)
+    .filter(t => { if (!t || seen.has(t)) return false; seen.add(t); return true; });
+}
+
+function showAC(t, val) {
+  const dropdown = document.getElementById('task-ac-' + t);
+  if (!val.trim()) { dropdown.classList.remove('open'); return; }
+  const lower = val.toLowerCase();
+  acMatches[t] = getTaskHistory().filter(task => task.toLowerCase().includes(lower)).slice(0, 8);
+  if (!acMatches[t].length) { dropdown.classList.remove('open'); return; }
+  dropdown.innerHTML = acMatches[t].map((task, i) =>
+    `<div class="ac-item" onmousedown="event.preventDefault()" onclick="selectAC(${t},${i})">${task.replace(/</g,'&lt;')}</div>`
+  ).join('');
+  dropdown.classList.add('open');
+}
+
+function selectAC(t, i) {
+  const ta = document.getElementById('task-input-' + t);
+  ta.value = acMatches[t][i] || '';
+  document.getElementById('task-ac-' + t).classList.remove('open');
+  ta.focus();
+}
+
+function hideAC(t) {
+  setTimeout(() => document.getElementById('task-ac-' + t)?.classList.remove('open'), 150);
+}
+
 // ── Settings drawer ───────────────────────────
 function openSettings() {
   renderSettingsProjects();
+  const inp = document.getElementById('util-target-input');
+  if (inp) inp.value = state.settings?.utilTarget ?? 80;
   document.getElementById('settings-overlay').classList.add('open');
 }
 
@@ -2069,6 +2362,15 @@ function closeSettings() {
 
 function onSettingsOverlayClick(e) {
   if (e.target === document.getElementById('settings-overlay')) closeSettings();
+}
+
+function setProjectTarget(id, val) {
+  const proj = state.projects.find(p => p.id === id);
+  if (!proj) return;
+  const hours = parseFloat(val);
+  proj.weeklyTargetMins = (!val || isNaN(hours) || hours <= 0) ? null : Math.round(hours * 60);
+  saveState();
+  if (activeTab === 'summary') renderSummary();
 }
 
 function renderSettingsProjects() {
@@ -2083,8 +2385,19 @@ function renderSettingsProjects() {
   list.innerHTML = sorted.map(p => {
     const entryCount = state.log.filter(e => e.projectId === p.id).length;
     const tip = entryCount ? `${entryCount} log entr${entryCount === 1 ? 'y' : 'ies'}` : '';
+    const targetHrs = p.weeklyTargetMins ? p.weeklyTargetMins / 60 : '';
     return `<div class="proj-settings-row">
-      <span class="proj-settings-name">${p.name}${tip ? `<span style="font-size:10px;color:var(--text-3);margin-left:5px;">${tip}</span>` : ''}</span>
+      <div style="flex:1;min-width:0;">
+        <div class="proj-settings-name">${p.name}${tip ? `<span style="font-size:10px;color:var(--text-3);margin-left:5px;">${tip}</span>` : ''}</div>
+        <div class="proj-target-row">
+          <span class="proj-target-label">Weekly target:</span>
+          <input type="number" class="proj-target-input" min="0" max="80" step="0.5"
+            value="${targetHrs}" placeholder="—"
+            onchange="setProjectTarget(${p.id}, this.value)"
+            title="Weekly hour target for this project">
+          <span class="proj-target-label">hrs</span>
+        </div>
+      </div>
       <span class="proj-settings-badge ${p.billable ? 'bill' : 'nonbill'}">${p.billable ? 'Billable' : 'Non-bill.'}</span>
       <button class="btn-delete-proj" onclick="deleteProjectFromSettings(${p.id})" title="Delete project">✕</button>
     </div>`;
