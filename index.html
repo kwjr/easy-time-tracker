@@ -1490,6 +1490,11 @@ function fmtMins(mins) {
   return m === 0 ? h + 'h' : h + 'h ' + m + 'm';
 }
 
+function fmtDecimal(mins) {
+  if (!mins) return '0.00';
+  return (mins / 60).toFixed(2);
+}
+
 function fmtElapsed(ms) {
   const s = Math.floor(ms / 1000);
   return pad(Math.floor(s/3600)) + ':' + pad(Math.floor((s%3600)/60)) + ':' + pad(s%60);
@@ -1943,7 +1948,7 @@ function renderDailySummary() {
     html += `<tr class="${logged ? 'psa-logged-row' : ''}">
       <td><div class="log-project">${g.projectName}</div></td>
       <td style="color:var(--text-2);line-height:1.5;font-size:13px;">${taskStr || '—'}</td>
-      <td class="mono">${fmtMins(g.minutes)}</td>
+      <td class="mono">${fmtDecimal(g.minutes)}</td>
       <td class="right"><span class="badge ${g.billable ? 'badge-bill' : 'badge-nonbill'}">${g.billable ? 'Billable' : 'Non-bill.'}</span></td>
       <td class="right">
         <button class="psa-btn ${logged ? 'psa-checked' : ''}"
