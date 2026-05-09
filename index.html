@@ -1821,7 +1821,7 @@ function renderLogTab() {
     <th style="width:88px;"></th>
   </tr></thead><tbody>`;
 
-  [...entries].reverse().forEach(e => {
+  [...entries].forEach(e => {
     html += `<tr>
       <td>
         <div class="log-project">${e.projectName}</div>
@@ -1856,6 +1856,16 @@ function clearSelectedDay() {
 let dailySummaryFilter = null;
 
 function psaKey(dateKey, projectId) { return `${dateKey}_${projectId}`; }
+
+// Internal projects float to the top; within each group, A-Z
+function sortProjectList(list) {
+  return [...list].sort((a, b) => {
+    const aInt = a.name.toLowerCase().startsWith('internal');
+    const bInt = b.name.toLowerCase().startsWith('internal');
+    if (aInt !== bInt) return aInt ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+}
 
 function togglePSA(dateKey, projectId) {
   const k = psaKey(dateKey, projectId);
@@ -1896,7 +1906,7 @@ function renderDailySummary() {
     return;
   }
 
-  // Group by project in chronological order
+  // Group by project
   const projOrder = [];
   const grouped   = {};
   entries.forEach(e => {
@@ -1909,7 +1919,12 @@ function renderDailySummary() {
     if (e.task) grouped[e.projectId].tasks.push(e.task);
   });
 
-  countEl.textContent = projOrder.length + ' project' + (projOrder.length === 1 ? '' : 's');
+  // Sort: Internal first, then A-Z within each group
+  const sortedOrder = sortProjectList(
+    projOrder.map(pid => ({ id: pid, name: grouped[pid].projectName }))
+  ).map(p => p.id);
+
+  countEl.textContent = sortedOrder.length + ' project' + (sortedOrder.length === 1 ? '' : 's');
 
   let html = `<table class="log-table"><thead><tr>
     <th style="width:25%">Project</th>
@@ -1920,7 +1935,7 @@ function renderDailySummary() {
     <th style="width:36px;"></th>
   </tr></thead><tbody>`;
 
-  projOrder.forEach(pid => {
+  sortedOrder.forEach(pid => {
     const g       = grouped[pid];
     const idsAttr = JSON.stringify(g.ids).replace(/"/g, '&quot;');
     const taskStr = g.tasks.join(', ');
@@ -1979,11 +1994,19 @@ function renderSummary() {
     projMap[e.projectId].total        += e.minutes;
   });
 
-  const projList  = Object.values(projMap).sort((a, b) => b.total - a.total);
+  // Always show every project; sort Internal first then A-Z
+  const projList = sortProjectList(state.projects.map(p => ({
+    projectId: p.id,
+    name:      p.name,
+    billable:  p.billable,
+    days:      projMap[p.id]?.days  || {},
+    total:     projMap[p.id]?.total || 0,
+  })));
+
   const container = document.getElementById('week-table-container');
 
   if (projList.length === 0) {
-    container.innerHTML = '<div class="empty-state">No time logged this week.</div>';
+    container.innerHTML = '<div class="empty-state">No projects configured. Add projects in Settings.</div>';
     return;
   }
 
