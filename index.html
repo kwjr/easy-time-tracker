@@ -1436,16 +1436,23 @@ let activeTab    = 'timer';
 let logDayFilter = null;
 
 // ── Date helpers ──────────────────────────────
-function todayKey() { return new Date().toISOString().slice(0, 10); }
+function localDateKey(d) {
+  const dt = d || new Date();
+  return dt.getFullYear() + '-' +
+    String(dt.getMonth() + 1).padStart(2, '0') + '-' +
+    String(dt.getDate()).padStart(2, '0');
+}
+
+function todayKey() { return localDateKey(); }
 
 function weekDays() {
   const d = new Date();
-  d.setDate(d.getDate() - d.getDay());
+  d.setDate(d.getDate() - d.getDay()); // back to Sunday
   d.setHours(0, 0, 0, 0);
   return Array.from({ length: 7 }, (_, i) => {
     const x = new Date(d);
     x.setDate(d.getDate() + i);
-    return x.toISOString().slice(0, 10);
+    return localDateKey(x);
   });
 }
 
