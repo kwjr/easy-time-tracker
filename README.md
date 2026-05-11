@@ -7,42 +7,78 @@ A lightweight, privacy-first time tracking Progressive Web App built for profess
 ## Features
 
 ### Dual Timers
-Run two independent timers side by side. Starting one automatically pauses the other, so switching between tasks requires a single click. Each timer supports pause, resume, and discard without logging.
+Run two independent timers side by side. Starting one automatically pauses the other, so switching between tasks requires a single click. Each timer supports pause, resume, discard (with two-click confirmation), and survives a browser refresh or accidental close — elapsed time is restored on reload.
 
 ### Flexible Logging
 - **Round-up billing** — all entries round up to the nearest 15-minute increment
 - **Manual entries** — add, edit, or delete log entries for any day of the current week
 - **Task notes** — capture what you were working on alongside each time entry
+- **Task autocomplete** — suggestions drawn from a persistent cross-week history as you type
+- **Timezone-safe** — entries are stamped with local date, not UTC, so late-evening work always lands on the correct day
 
 ### Four Tabs
 
 | Tab | What it shows |
 |---|---|
-| **Timers** | Active timers, daily 8-hour progress meter, billable utilization |
-| **Log** | Individual entries for any day with add / edit / delete / copy |
-| **Daily Summary** | Entries grouped by project with tasks concatenated, PSA Timecard link |
-| **Weekly Summary** | Sun–Sat table by project, 40-hour progress meter, weekly utilization |
+| **Timers** | Active timers, configurable daily progress meter, billable utilization |
+| **Log** | Individual entries for any day, sorted oldest-to-newest, with add / edit / delete / copy |
+| **Daily Summary** | Entries grouped by project, Internal-first then A–Z, with decimal hours, day total, task copy, and PSA logged checkboxes |
+| **Weekly Summary** | All projects Sun–Sat (including those with no entries), 40-hour progress meter, weekly utilization, per-project targets |
 
 ### Progress Meters
-- **Daily meter** — fills toward 8 hours; turns from teal to rose when you hit the target
+- **Daily meter** — fills toward a configurable hour target (default 8h); color shifts from teal to rose at goal
 - **Weekly meter** — fills toward 40 hours across the full week
 
 ### Billable Utilization
-Billable % is surfaced on every tab, color-coded green (≥ 80%), amber (60–79%), or red (< 60%).
+Billable % is shown on every tab, color-coded green / amber / red against a configurable target. Set your target in Settings; amber begins 20 points below the target, red below that.
 
 ### Project Management
-Manage your project list from the ⚙ Settings panel. Add or delete projects, mark each as billable or non-billable. Dropdowns sort A–Z automatically.
+Manage your project list from the ⚙ Settings panel:
+- **Add** projects with a name and billable type
+- **Rename** projects inline — click the name field to edit, press Enter or click away to save
+- **Delete** projects (existing log entries are preserved)
+- **Set weekly targets** per project — progress shown in the Weekly Summary target column
+- **Dropdowns sort A–Z** with Internal projects always grouped at the top
+
+### Summary Views
+- **Daily Summary** — one row per project; tasks concatenated and comma-separated; time shown as decimal hours to 2 d.p.; day-total footer row; Internal-first sort
+- **Weekly Summary** — all configured projects shown regardless of whether time has been logged; per-project target column with color-coded mini progress bar
+
+### Cross-Tab Timer Banner
+A slim persistent banner below the tab row shows any running or paused timer — elapsed time, project, task description — with fully functional Pause/Resume and Log buttons usable from any tab.
+
+### Timer Persistence
+Timer state (running or paused) is written to `localStorage` on every state change. If the browser closes or refreshes mid-task, the timer restores to paused with all accumulated time intact, including elapsed time while the page was closed.
+
+### Task History
+Autocomplete suggestions persist across weekly resets in a dedicated history store (up to 300 unique entries, most-recent first). Every timer stop and manual entry add contributes to the history. The current week's log entries are also included.
+
+### Configurable Targets
+- **Daily hour target** — controls the daily progress meter (default 8h, accepts decimals)
+- **Billable utilization target** — controls color thresholds across all tabs (default 80%)
+- **Per-project weekly targets** — set per project in Settings; progress tracked in the Weekly Summary
 
 ### Light & Dark Mode
-Toggles in Settings. Automatically follows your OS preference on first load. Choice persists across sessions.
+Toggle in Settings. Automatically follows OS preference on first load. Choice persists across sessions.
 
 ### Data & Privacy
-All data lives in your browser's `localStorage`. Nothing is sent to any server. Data persists across sessions and resets weekly (Sunday midnight).
+All data lives in your browser's `localStorage`. Nothing is sent to any server.
 
-### Export
-- **Export CSV** — downloads the full week's log for pasting into billing or project management tools
-- **Copy task text** — single-click copy of any entry's task notes to clipboard
+### Export & Copy
+- **Export CSV** — downloads the full week's log
+- **Copy task text** — single-click copy per row (Log tab: individual entry; Daily Summary: concatenated project tasks)
 - **Print** — clean print layout for paper timesheets
+
+---
+
+## PSA Timecard Workflow
+
+The Daily Summary tab is designed to match the PSA entry flow:
+
+1. Open the **Daily Summary** tab and select today using the day-filter pills
+2. For each project row: copy task text (⎘), enter time and tasks in PSA, check the **PSA** checkbox to mark it done
+3. Click **Open PSA Timecard Entry** at the bottom of the card to jump directly to the PSA entry page
+4. PSA checkbox state persists across reloads and clears automatically on Reset Week
 
 ---
 
@@ -131,9 +167,16 @@ xdg-open index.html      # Linux
 
 ## Data Persistence
 
-- **Within a week** — all log entries persist across browser sessions via `localStorage`
-- **Week rollover** — on load, entries outside the current Sun–Sat week are automatically cleared
-- **Clearing data** — use "Clear this day" on the Log tab, or "Reset week" on the Weekly Summary tab
+| Data | Scope |
+|---|---|
+| Log entries | Current week (Sun–Sat); clears on weekly rollover |
+| Task autocomplete history | Indefinitely, up to 300 entries; survives weekly reset |
+| Active timer state | Until stopped or discarded; restores after page reload |
+| PSA logged status | Current week; clears on Reset Week |
+| Project list, names & targets | Indefinitely |
+| Settings (targets, theme) | Indefinitely |
+
+- **Clearing entries** — "Clear this day" (Log tab) or "Reset week" (Weekly Summary)
 - **No cloud sync** — data is local to the browser and device it was entered on
 
 ---
