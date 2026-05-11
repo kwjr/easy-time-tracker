@@ -716,7 +716,28 @@
   .ac-item:hover { background: var(--hyland-navy-soft); }
   [data-theme="dark"] .ac-item:hover { background: var(--surface2); }
 
-  /* ── PSA logged checkbox ── */
+  /* ── Project rename input ── */
+  .proj-name-input {
+    font-family: var(--sans); font-size: 13px; font-weight: 500;
+    color: var(--text); background: transparent; border: none;
+    border-bottom: 1px solid transparent; padding: 0; width: 100%;
+    outline: none; transition: border-color 0.15s;
+  }
+  .proj-name-input:hover  { border-bottom-color: var(--border-med); }
+  .proj-name-input:focus  { border-bottom-color: var(--hyland-navy-mid); }
+
+  /* ── Daily summary total row ── */
+  .ds-total-row td {
+    font-weight: 600; font-family: var(--mono);
+    border-top: 1.5px solid var(--border-med);
+    border-bottom: none;
+    padding-top: 9px;
+    background: var(--surface2);
+  }
+  .ds-total-row td:first-child {
+    font-family: var(--sans); font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-2);
+  }
   .psa-btn {
     width: 24px; height: 24px;
     border-radius: var(--radius-xs);
@@ -1360,6 +1381,15 @@
             <span style="font-size:13px;color:var(--text-2);">%</span>
           </div>
         </div>
+        <div class="toggle-row" style="justify-content:space-between;margin-top:6px;">
+          <span class="toggle-label">Daily hour target</span>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <input type="number" id="daily-target-input" min="1" max="24" step="0.5"
+              style="width:54px;height:28px;font-size:13px;padding:0 6px;border:0.5px solid var(--border-med);border-radius:var(--radius-xs);background:var(--surface);color:var(--text);outline:none;font-family:var(--sans);"
+              onchange="setDailyTarget(this.value)">
+            <span style="font-size:13px;color:var(--text-2);">hrs</span>
+          </div>
+        </div>
         <div style="font-size:10px;color:var(--text-3);margin-top:6px;padding:0 2px;">
           Green ≥ target · Amber ≥ target − 20% · Red below
         </div>
@@ -1413,18 +1443,20 @@ const STORAGE_KEY = 'time_tracker_v2';
 const DAY_NAMES   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
 const DEFAULT_PROJECTS = [
-  { id: 1, name: 'Internal / Admin',                billable: false },
+  { id: 1, name: 'Internal / Admin',                    billable: false },
   { id: 2, name: 'Internal / Professional Development', billable: false },
+  { id: 3, name: 'Internal / PTO',                      billable: false },
 ];
 
 // ── App state ─────────────────────────────────
 let state = {
   projects:      [...DEFAULT_PROJECTS],
-  nextId:        3,
+  nextId:        4,
   activeProject: [1, 2],
   log:           [],
-  settings:      { utilTarget: 80 },
+  settings:      { utilTarget: 80, dailyTarget: 8 },
   psaLogged:     {},
+  taskHistory:   [],
 };
 
 const timers = [0, 1].map(() => ({
@@ -1472,6 +1504,7 @@ function loadState() {
     if (s.activeProject) state.activeProject = s.activeProject;
     if (s.settings)      state.settings      = { ...state.settings, ...s.settings };
     if (s.psaLogged)     state.psaLogged     = s.psaLogged;
+    if (s.taskHistory)   state.taskHistory   = s.taskHistory;
     if (s.log) {
       const days = new Set(weekDays());
       state.log = s.log.filter(e => days.has(e.date));
@@ -1484,6 +1517,7 @@ function saveState() {
     projects: state.projects, nextId: state.nextId,
     activeProject: state.activeProject, log: state.log,
     settings: state.settings, psaLogged: state.psaLogged,
+    taskHistory: state.taskHistory,
   }));
 }
 
@@ -1585,6 +1619,7 @@ function startTimer(t) {
   ts.accumulated = 0; ts.startTime = Date.now(); ts.startDate = todayKey();
   document.getElementById('timer-sub-' + t).innerHTML = '<span class="running-dot"></span>Recording…';
   applyTimerUI(t, 'running');
+  saveTimerState();
   ts.interval = setInterval(() => {
     document.getElementById('timer-display-' + t).textContent = fmtElapsed(getElapsedMs(t));
     renderTimerBanner();
@@ -1599,6 +1634,7 @@ function pauseTimer(t) {
   ts.running = false; ts.paused = true; ts.startTime = null;
   document.getElementById('timer-sub-' + t).textContent = 'Paused — click Resume to continue';
   applyTimerUI(t, 'paused');
+  saveTimerState();
   renderTimerBanner();
 }
 
@@ -1610,6 +1646,7 @@ function resumeTimer(t) {
   ts.running = true; ts.paused = false; ts.startTime = Date.now();
   document.getElementById('timer-sub-' + t).innerHTML = '<span class="running-dot"></span>Recording…';
   applyTimerUI(t, 'running');
+  saveTimerState();
   ts.interval = setInterval(() => {
     document.getElementById('timer-display-' + t).textContent = fmtElapsed(getElapsedMs(t));
     renderTimerBanner();
@@ -1626,6 +1663,7 @@ function stopTimer(t) {
   const task    = document.getElementById('task-input-' + t).value.trim();
 
   if (rounded > 0) {
+    addToTaskHistory(task);
     state.log.push({
       id: Date.now() + t, date: ts.startDate || todayKey(),
       projectId: proj.id, projectName: proj.name,
@@ -1638,6 +1676,7 @@ function stopTimer(t) {
 
   ts.running = false; ts.paused = false;
   ts.startTime = null; ts.accumulated = 0; ts.startDate = null;
+  clearTimerPersist(t);
   document.getElementById('timer-display-' + t).textContent = '00:00:00';
   document.getElementById('timer-sub-' + t).textContent = rounded > 0
     ? `Logged ${fmtMins(rounded)}`
@@ -1654,17 +1693,36 @@ function stopTimer(t) {
 }
 
 function discardTimer(t) {
-  const ts = timers[t];
+  const ts  = timers[t];
   if (!ts.running && !ts.paused) return;
-  clearInterval(ts.interval);
-  ts.running = false; ts.paused = false;
-  ts.startTime = null; ts.accumulated = 0; ts.startDate = null;
-  document.getElementById('timer-display-' + t).textContent = '00:00:00';
-  document.getElementById('timer-display-' + t).classList.remove('paused');
-  document.getElementById('timer-sub-' + t).textContent = 'Discarded';
-  document.getElementById('task-input-' + t).value = '';
-  applyTimerUI(t, 'idle');
-  renderTimerBanner();
+  const btn = document.getElementById('btn-discard-' + t);
+
+  if (btn.dataset.confirming === 'true') {
+    clearTimeout(btn._confirmTimer);
+    clearInterval(ts.interval);
+    ts.running = false; ts.paused = false;
+    ts.startTime = null; ts.accumulated = 0; ts.startDate = null;
+    document.getElementById('timer-display-' + t).textContent = '00:00:00';
+    document.getElementById('timer-display-' + t).classList.remove('paused');
+    document.getElementById('timer-sub-'     + t).textContent = 'Discarded';
+    document.getElementById('task-input-'    + t).value = '';
+    applyTimerUI(t, 'idle');
+    renderTimerBanner();
+    clearTimerPersist(t);
+  } else {
+    btn.dataset.confirming = 'true';
+    btn.textContent = 'Sure?';
+    btn.style.background   = 'var(--red-bg)';
+    btn.style.color        = 'var(--red)';
+    btn.style.borderColor  = 'rgba(155,35,53,0.3)';
+    btn.style.width        = 'auto';
+    btn.style.padding      = '0 8px';
+    btn._confirmTimer = setTimeout(() => {
+      btn.dataset.confirming = 'false';
+      btn.textContent        = '✕';
+      btn.style.cssText      = '';
+    }, 3000);
+  }
 }
 // ── Cross-tab timer banner ────────────────────
 function renderTimerBanner() {
@@ -1731,7 +1789,7 @@ function utilClass(pct) {
 
 // ── Meters ────────────────────────────────────
 function renderDailyMeter() {
-  const GOAL_MINS = 480; // 8 hours
+  const GOAL_MINS = (state.settings?.dailyTarget ?? 8) * 60;
   const logged = state.log
     .filter(e => e.date === todayKey())
     .reduce((sum, e) => sum + e.minutes, 0);
@@ -1970,7 +2028,15 @@ function renderDailySummary() {
     </tr>`;
   });
 
-  html += '</tbody></table>';
+  // Grand total footer
+  const grandTotal = sortedOrder.reduce((sum, pid) => sum + grouped[pid].minutes, 0);
+  html += `<tfoot><tr class="ds-total-row">
+    <td>Day total</td><td></td>
+    <td class="mono" style="text-align:right;">${fmtDecimal(grandTotal)}</td>
+    <td colspan="3"></td>
+  </tr></tfoot>`;
+
+  html += '</table>';
   body.innerHTML = html;
 }
 
@@ -2264,6 +2330,7 @@ function saveEntry() {
     }
   } else {
     // Add new
+    addToTaskHistory(task);
     state.log.push({
       id:          Date.now(),
       date:        dateVal,
@@ -2333,6 +2400,7 @@ function init() {
   document.getElementById('date-label').textContent =
     new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   populateSelects();
+  restoreTimerState();
   document.getElementById('log-count').textContent = todayEntries().length;
   renderDailyMeter();
   applyTimerUI(0, 'idle'); applyTimerUI(1, 'idle');
@@ -2353,11 +2421,97 @@ function setUtilTarget(val) {
 let acMatches = [[], []];
 
 function getTaskHistory() {
+  // Persistent cross-week history, supplemented by this week's log
   const seen = new Set();
-  return [...state.log]
-    .reverse()
-    .map(e => e.task)
-    .filter(t => { if (!t || seen.has(t)) return false; seen.add(t); return true; });
+  const result = [];
+  const add = t => { if (t && !seen.has(t)) { seen.add(t); result.push(t); } };
+  (state.taskHistory || []).forEach(add);
+  [...state.log].reverse().map(e => e.task).forEach(add);
+  return result;
+}
+
+function addToTaskHistory(task) {
+  if (!task || !task.trim()) return;
+  const h = state.taskHistory || [];
+  state.taskHistory = [task, ...h.filter(t => t !== task)].slice(0, 300);
+}
+
+function setDailyTarget(val) {
+  const n = parseFloat(val);
+  state.settings.dailyTarget = (!val || isNaN(n) || n <= 0) ? 8 : Math.min(24, n);
+  saveState();
+  renderDailyMeter();
+}
+
+function renameProject(id) {
+  const input = document.getElementById('proj-name-' + id);
+  const name  = input?.value.trim();
+  if (!name) { const p = state.projects.find(p => p.id === id); if (p && input) input.value = p.name; return; }
+  const proj = state.projects.find(p => p.id === id);
+  if (!proj || name === proj.name) return;
+  proj.name = name;
+  state.log.forEach(e => { if (e.projectId === id) e.projectName = name; });
+  saveState();
+  populateSelects();
+}
+
+// ── Timer persistence ─────────────────────────
+const TIMER_KEY = 'ett_timers_v1';
+
+function saveTimerState() {
+  const data = [0, 1].map(t => {
+    const ts = timers[t];
+    if (!ts.running && !ts.paused) return null;
+    return {
+      running:     ts.running,
+      paused:      ts.paused,
+      startTime:   ts.startTime,
+      accumulated: ts.accumulated,
+      startDate:   ts.startDate,
+      task:        document.getElementById('task-input-' + t)?.value || '',
+      projectId:   state.activeProject[t],
+    };
+  });
+  localStorage.setItem(TIMER_KEY, JSON.stringify(data));
+}
+
+function clearTimerPersist(t) {
+  try {
+    const raw  = localStorage.getItem(TIMER_KEY);
+    const data = raw ? JSON.parse(raw) : [null, null];
+    data[t] = null;
+    if (!data[0] && !data[1]) localStorage.removeItem(TIMER_KEY);
+    else localStorage.setItem(TIMER_KEY, JSON.stringify(data));
+  } catch(e) {}
+}
+
+function restoreTimerState() {
+  try {
+    const raw = localStorage.getItem(TIMER_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    let anyRestored = false;
+    data.forEach((td, t) => {
+      if (!td || (!td.running && !td.paused)) return;
+      const ta = document.getElementById('task-input-' + t);
+      if (ta) ta.value = td.task || '';
+      if (td.projectId && state.projects.find(p => p.id === td.projectId))
+        state.activeProject[t] = td.projectId;
+      let accumulated = td.accumulated || 0;
+      if (td.running && td.startTime) accumulated += Date.now() - td.startTime;
+      timers[t].accumulated = accumulated;
+      timers[t].startDate   = td.startDate || todayKey();
+      timers[t].paused      = true;
+      document.getElementById('timer-display-' + t).textContent = fmtElapsed(accumulated);
+      document.getElementById('timer-display-' + t).classList.add('paused');
+      document.getElementById('timer-sub-'     + t).textContent =
+        td.running ? 'Restored — review elapsed time, then Resume or Log'
+                   : 'Paused — click Resume to continue';
+      applyTimerUI(t, 'paused');
+      anyRestored = true;
+    });
+    if (anyRestored) populateSelects();
+  } catch(e) { console.warn('Timer restore failed:', e); }
 }
 
 function showAC(t, val) {
@@ -2386,8 +2540,10 @@ function hideAC(t) {
 // ── Settings drawer ───────────────────────────
 function openSettings() {
   renderSettingsProjects();
-  const inp = document.getElementById('util-target-input');
-  if (inp) inp.value = state.settings?.utilTarget ?? 80;
+  const util  = document.getElementById('util-target-input');
+  if (util)  util.value  = state.settings?.utilTarget  ?? 80;
+  const daily = document.getElementById('daily-target-input');
+  if (daily) daily.value = state.settings?.dailyTarget ?? 8;
   document.getElementById('settings-overlay').classList.add('open');
 }
 
@@ -2423,7 +2579,12 @@ function renderSettingsProjects() {
     const targetHrs = p.weeklyTargetMins ? p.weeklyTargetMins / 60 : '';
     return `<div class="proj-settings-row">
       <div style="flex:1;min-width:0;">
-        <div class="proj-settings-name">${p.name}${tip ? `<span style="font-size:10px;color:var(--text-3);margin-left:5px;">${tip}</span>` : ''}</div>
+        <input type="text" class="proj-name-input" id="proj-name-${p.id}"
+          value="${p.name.replace(/"/g, '&quot;')}"
+          onchange="renameProject(${p.id})"
+          onkeydown="if(event.key==='Enter')this.blur()"
+          title="Click to rename project">
+        ${tip ? `<div style="font-size:10px;color:var(--text-3);margin-top:1px;">${tip}</div>` : ''}
         <div class="proj-target-row">
           <span class="proj-target-label">Weekly target:</span>
           <input type="number" class="proj-target-input" min="0" max="80" step="0.5"
