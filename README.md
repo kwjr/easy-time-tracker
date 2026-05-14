@@ -66,8 +66,8 @@ All data lives in your browser's `localStorage`. Nothing is sent to any server.
 
 ### Export & Copy
 - **Export CSV** — downloads the full week's log
+- **Refresh** — reloads the page; active timers restore automatically from saved state
 - **Copy task text** — single-click copy per row (Log tab: individual entry; Daily Summary: concatenated project tasks)
-- **Print** — clean print layout for paper timesheets
 
 ---
 

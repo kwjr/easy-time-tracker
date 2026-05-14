@@ -5,6 +5,13 @@ Versions are listed from newest to oldest.
 
 ---
 
+## v1.9.0 — Navigation Update
+
+### Changed
+- **Print button replaced with Refresh** — the Print button in the top navigation bar has been replaced with a ↺ Refresh button (`location.reload()`); active timers restore automatically from saved state after refresh
+
+---
+
 ## v1.8.0 — Default Projects Update
 
 ### Added
@@ -97,7 +104,7 @@ Versions are listed from newest to oldest.
 
 ### Added
 - **Hyland brand colors** — primary navy `#191E5E`, rose accent `#EC5CBB`, peppermint-derived teal `#1A8C6F` applied throughout
-- **Sticky top navigation bar** — navy bar with clock SVG icon, "Easy Time Tracker" wordmark, Export CSV and Print actions
+- **Sticky top navigation bar** — navy bar with clock SVG icon, "Easy Time Tracker" wordmark, Export CSV and Refresh actions
 - **Typography** — Inter (UI) and IBM Plex Mono (timer displays) loaded via Google Fonts
 - **Timer card accent stripes** — 3px top border shifts from neutral (idle) → teal (running) → rose (paused)
 - **Tab styling** — active tab fills navy; inactive tabs neutral
@@ -138,5 +145,5 @@ Versions are listed from newest to oldest.
 - **Add project** — "+ New" button in timer dropdown opens a modal for quick project creation
 - **localStorage persistence** — all data persists across browser sessions within the current day
 - **Export CSV** — week's log downloadable as a CSV file
-- **Print** — browser print layout for paper timesheets
+- **Refresh** — reloads the page; active timers restore from saved state
 - **Default projects** — Internal / Admin (non-billable) and Internal / Professional Development (non-billable) pre-loaded on first run
