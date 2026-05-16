@@ -716,7 +716,35 @@
   .ac-item:hover { background: var(--hyland-navy-soft); }
   [data-theme="dark"] .ac-item:hover { background: var(--surface2); }
 
-  /* ── Project rename input ── */
+  /* ── Week navigation ── */
+  .week-nav {
+    display: none;
+    align-items: center; justify-content: space-between;
+    padding: 7px 14px;
+    background: var(--surface);
+    border: 0.5px solid var(--border-med);
+    border-radius: var(--radius-sm);
+    margin-bottom: 1rem;
+  }
+  .week-nav.visible { display: flex; }
+  .week-nav-btn {
+    font-family: var(--sans); font-size: 12px; font-weight: 500;
+    border: none; background: transparent;
+    color: var(--hyland-navy); cursor: pointer; padding: 2px 0;
+    transition: opacity 0.12s;
+  }
+  .week-nav-btn:hover:not(:disabled) { opacity: 0.7; }
+  .week-nav-btn:disabled { color: var(--text-3); cursor: default; }
+  .week-nav-label {
+    font-size: 12px; font-weight: 500; color: var(--text-2);
+  }
+  .week-nav-badge {
+    font-size: 10px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.07em; padding: 2px 7px; border-radius: 99px;
+    margin-left: 6px;
+  }
+  .week-nav-badge.prev { background: var(--amber-bg); color: var(--amber); }
+  .week-nav-badge.curr { background: var(--green-bg); color: var(--green); }
   .proj-name-input {
     font-family: var(--sans); font-size: 13px; font-weight: 500;
     color: var(--text); background: transparent; border: none;
@@ -1101,6 +1129,16 @@
     <button class="tab"        id="tab-summary" onclick="switchTab('summary')">Weekly Summary</button>
   </div>
 
+  <!-- Week navigation (hidden on Timers tab) -->
+  <div class="week-nav" id="week-nav">
+    <button class="week-nav-btn" id="week-prev-btn" onclick="setWeekOffset(-1)">← Previous Week</button>
+    <span>
+      <span class="week-nav-label" id="week-nav-label"></span>
+      <span class="week-nav-badge" id="week-nav-badge"></span>
+    </span>
+    <button class="week-nav-btn" id="week-next-btn" onclick="setWeekOffset(0)">Current Week →</button>
+  </div>
+
   <!-- Cross-tab timer banner (hidden on Timers tab) -->
   <div class="timer-banner" id="timer-banner"></div>
 
@@ -1464,8 +1502,10 @@ const timers = [0, 1].map(() => ({
   startTime: null, accumulated: 0, interval: null,
 }));
 
-let activeTab    = 'timer';
-let logDayFilter = null;
+let activeTab         = 'timer';
+let logDayFilter      = null;
+let dailySummaryFilter= null;
+let weekOffset        = 0;   // 0 = current week, -1 = previous week
 
 // ── Date helpers ──────────────────────────────
 function localDateKey(d) {
@@ -1477,15 +1517,25 @@ function localDateKey(d) {
 
 function todayKey() { return localDateKey(); }
 
-function weekDays() {
+function weekDays(offset = 0) {
   const d = new Date();
-  d.setDate(d.getDate() - d.getDay()); // back to Sunday
+  d.setDate(d.getDate() - d.getDay() + offset * 7);
   d.setHours(0, 0, 0, 0);
   return Array.from({ length: 7 }, (_, i) => {
     const x = new Date(d);
     x.setDate(d.getDate() + i);
     return localDateKey(x);
   });
+}
+
+// Return the appropriate default day for the currently viewed week
+function defaultDayForOffset(offset) {
+  const days  = weekDays(offset);
+  const today = todayKey();
+  if (days.includes(today)) return today;
+  // Previous week: use the last day that has entries, or Saturday
+  const withEntries = days.filter(d => state.log.some(e => e.date === d));
+  return withEntries.length ? withEntries[withEntries.length - 1] : days[6];
 }
 
 function dayLabel(dateKey) {
@@ -1506,8 +1556,8 @@ function loadState() {
     if (s.psaLogged)     state.psaLogged     = s.psaLogged;
     if (s.taskHistory)   state.taskHistory   = s.taskHistory;
     if (s.log) {
-      const days = new Set(weekDays());
-      state.log = s.log.filter(e => days.has(e.date));
+      const keep = new Set([...weekDays(0), ...weekDays(-1)]);
+      state.log = s.log.filter(e => keep.has(e.date));
     }
   } catch(e) { console.warn('Load failed', e); }
 }
@@ -1522,7 +1572,12 @@ function saveState() {
 }
 
 // ── Formatting ────────────────────────────────
-function roundToQuarter(ms) { return Math.ceil(ms / 60000 / 15) * 15; }
+function roundToQuarter(ms) {
+  const totalMins = ms / 60000;
+  const lower     = Math.floor(totalMins / 15) * 15;
+  const remainder = totalMins - lower;
+  return remainder > 5 ? lower + 15 : lower;
+}
 
 function fmtMins(mins) {
   if (!mins) return '—';
@@ -1758,12 +1813,45 @@ function renderTimerBanner() {
   }).join('');
 }
 
+// ── Week navigation ───────────────────────────
+function setWeekOffset(offset) {
+  weekOffset     = offset;
+  logDayFilter   = defaultDayForOffset(offset);
+  dailySummaryFilter = defaultDayForOffset(offset);
+  updateWeekNav();
+  if (activeTab === 'log')     renderLogTab();
+  if (activeTab === 'daily')   renderDailySummary();
+  if (activeTab === 'summary') renderSummary();
+}
+
+function updateWeekNav() {
+  const nav    = document.getElementById('week-nav');
+  const prev   = document.getElementById('week-prev-btn');
+  const next   = document.getElementById('week-next-btn');
+  const label  = document.getElementById('week-nav-label');
+  const badge  = document.getElementById('week-nav-badge');
+
+  const onTimer = activeTab === 'timer';
+  nav.classList.toggle('visible', !onTimer);
+
+  const days = weekDays(weekOffset);
+  const fmt  = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  label.textContent = fmt(days[0]) + ' – ' + fmt(days[6]);
+
+  const isPrev = weekOffset < 0;
+  badge.textContent   = isPrev ? 'Prev Week' : 'Current';
+  badge.className     = 'week-nav-badge ' + (isPrev ? 'prev' : 'curr');
+  prev.disabled       = weekOffset <= -1;
+  next.disabled       = weekOffset >= 0;
+}
+
 function switchTab(tab) {
   activeTab = tab;
   ['timer', 'log', 'daily', 'summary'].forEach(t => {
     document.getElementById('pane-' + t).style.display = t === tab ? '' : 'none';
     document.getElementById('tab-'  + t).classList.toggle('active', t === tab);
   });
+  updateWeekNav();
   renderTimerBanner();
   if (tab === 'log')     renderLogTab();
   if (tab === 'daily')   renderDailySummary();
@@ -1845,10 +1933,11 @@ function renderWeeklyMeter(totalMins) {
 function todayEntries() { return state.log.filter(e => e.date === todayKey()); }
 
 function renderDayFilter() {
-  const days   = weekDays();
-  const today  = todayKey();
-  const hasDays= new Set(state.log.map(e => e.date));
-  const active = logDayFilter || today;
+  const days    = weekDays(weekOffset);
+  const today   = todayKey();
+  const hasDays = new Set(state.log.map(e => e.date));
+  const active  = logDayFilter && days.includes(logDayFilter)
+    ? logDayFilter : defaultDayForOffset(weekOffset);
 
   document.getElementById('day-filter').innerHTML = days.map(d => {
     const hasData = hasDays.has(d) || d === today;
@@ -1862,7 +1951,9 @@ function setLogDay(d) { logDayFilter = d; renderLogTab(); }
 
 function renderLogTab() {
   renderDayFilter();
-  const filterDate = logDayFilter || todayKey();
+  const days       = weekDays(weekOffset);
+  const filterDate = logDayFilter && days.includes(logDayFilter)
+    ? logDayFilter : defaultDayForOffset(weekOffset);
   const entries    = state.log.filter(e => e.date === filterDate);
   const count      = document.getElementById('log-entry-count');
   const body       = document.getElementById('log-body');
@@ -1915,7 +2006,9 @@ function renderLogTab() {
 }
 
 function clearSelectedDay() {
-  const d = logDayFilter || todayKey();
+  const days = weekDays(weekOffset);
+  const d = logDayFilter && days.includes(logDayFilter)
+    ? logDayFilter : defaultDayForOffset(weekOffset);
   if (!confirm(`Clear all entries for ${dayLabel(d)}? Cannot be undone.`)) return;
   state.log = state.log.filter(e => e.date !== d);
   saveState(); renderDailyMeter(); renderLogTab(); renderSummary();
@@ -1923,7 +2016,6 @@ function clearSelectedDay() {
 }
 
 // ── Daily Summary ─────────────────────────────
-let dailySummaryFilter = null;
 
 function psaKey(dateKey, projectId) { return `${dateKey}_${projectId}`; }
 
@@ -1947,13 +2039,14 @@ function togglePSA(dateKey, projectId) {
 function setDailySummaryDay(d) { dailySummaryFilter = d; renderDailySummary(); }
 
 function renderDailySummary() {
-  const filterDate = dailySummaryFilter || todayKey();
-  const entries    = state.log.filter(e => e.date === filterDate);
+  const days      = weekDays(weekOffset);
+  const today     = todayKey();
+  const hasDays   = new Set(state.log.map(e => e.date));
+  const filterDate = dailySummaryFilter && days.includes(dailySummaryFilter)
+    ? dailySummaryFilter : defaultDayForOffset(weekOffset);
+  const entries   = state.log.filter(e => e.date === filterDate);
 
   // Day filter pills
-  const days    = weekDays();
-  const today   = todayKey();
-  const hasDays = new Set(state.log.map(e => e.date));
   document.getElementById('daily-summary-day-filter').innerHTML = days.map(d => {
     const hasData = hasDays.has(d) || d === today;
     return `<button class="day-btn ${d === filterDate ? 'active' : ''}"
@@ -2042,8 +2135,9 @@ function renderDailySummary() {
 
 // ── Weekly summary ────────────────────────────
 function renderSummary() {
-  const days    = weekDays();
-  const today   = todayKey();
+  const days    = weekDays(weekOffset);
+  // Only highlight "today" column when viewing the current week
+  const today   = weekOffset === 0 ? todayKey() : '';
   const weekLog = state.log.filter(e => days.includes(e.date));
 
   let totalBill = 0, totalNonBill = 0;
@@ -2171,15 +2265,20 @@ function copyTask(btn, entryId) {
 
 // ── Reset week ────────────────────────────────
 function resetWeek() {
-  if (!confirm('Clear all logged entries for this entire week? This cannot be undone.')) return;
-  state.log = [];
-  state.psaLogged = {};
+  const days    = new Set(weekDays(weekOffset));
+  const weekDesc = weekOffset === 0 ? 'the current week' : 'the previous week';
+  if (!confirm(`Clear all logged entries for ${weekDesc}? This cannot be undone.`)) return;
+  state.log = state.log.filter(e => !days.has(e.date));
+  // Clear PSA status for this week only
+  Object.keys(state.psaLogged).forEach(k => {
+    if (days.has(k.split('_')[0])) delete state.psaLogged[k];
+  });
   saveState();
   renderDailyMeter();
   renderLogTab();
   renderDailySummary();
   renderSummary();
-  document.getElementById('log-count').textContent = '0';
+  document.getElementById('log-count').textContent = todayEntries().length;
 }
 
 function copyGroupTasks(btn) {
@@ -2240,13 +2339,13 @@ function openEntryModal(id) {
   const modal = document.getElementById('entry-modal');
   modal.classList.add('open');
 
-  // Populate day picker with this week's days
-  const days  = weekDays();
-  const today = todayKey();
-  const selDay = document.getElementById('em-date');
-  selDay.innerHTML = days.map(d =>
-    `<option value="${d}" ${d === (logDayFilter || today) ? 'selected' : ''}>${dayLabel(d)}</option>`
-  ).join('');
+  // Populate day picker — current week + previous week
+  const allDays = [...weekDays(-1), ...weekDays(0)];
+  const selDay  = document.getElementById('em-date');
+  selDay.innerHTML = allDays.map(d => {
+    const isDefault = d === (logDayFilter && allDays.includes(logDayFilter) ? logDayFilter : todayKey());
+    return `<option value="${d}" ${isDefault ? 'selected' : ''}>${dayLabel(d)} ${weekDays(-1).includes(d) ? '(prev)' : ''}</option>`;
+  }).join('');
 
   // Populate project picker
   const selProj = document.getElementById('em-project');
@@ -2314,7 +2413,9 @@ function saveEntry() {
     h.focus(); return;
   }
 
-  const rounded = Math.ceil(rawMins / 15) * 15;
+  const lower     = Math.floor(rawMins / 15) * 15;
+  const remainder = rawMins - lower;
+  const rounded   = remainder > 5 ? lower + 15 : lower;
   const proj    = state.projects.find(p => p.id === projId) || state.projects[0];
 
   if (editingEntryId) {
@@ -2401,6 +2502,7 @@ function init() {
     new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   populateSelects();
   restoreTimerState();
+  updateWeekNav();
   document.getElementById('log-count').textContent = todayEntries().length;
   renderDailyMeter();
   applyTimerUI(0, 'idle'); applyTimerUI(1, 'idle');
