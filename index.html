@@ -1530,11 +1530,12 @@ function weekDays(offset = 0) {
 
 // Return the appropriate default day for the currently viewed week
 function defaultDayForOffset(offset) {
-  const days  = weekDays(offset);
-  const today = todayKey();
+  const days        = weekDays(offset);
+  const today       = todayKey();
   if (days.includes(today)) return today;
-  // Previous week: use the last day that has entries, or Saturday
-  const withEntries = days.filter(d => state.log.some(e => e.date === d));
+  // Build a Set of logged dates once, then check each day in O(1)
+  const loggedDates = new Set(state.log.map(e => e.date));
+  const withEntries = days.filter(d => loggedDates.has(d));
   return withEntries.length ? withEntries[withEntries.length - 1] : days[6];
 }
 
@@ -1677,7 +1678,7 @@ function startTimer(t) {
   saveTimerState();
   ts.interval = setInterval(() => {
     document.getElementById('timer-display-' + t).textContent = fmtElapsed(getElapsedMs(t));
-    renderTimerBanner();
+    renderTimerBanner(true);
   }, 1000);
 }
 
@@ -1702,11 +1703,11 @@ function resumeTimer(t) {
   document.getElementById('timer-sub-' + t).innerHTML = '<span class="running-dot"></span>Recording…';
   applyTimerUI(t, 'running');
   saveTimerState();
+  renderTimerBanner(); // full rebuild to update pause→resume button
   ts.interval = setInterval(() => {
     document.getElementById('timer-display-' + t).textContent = fmtElapsed(getElapsedMs(t));
-    renderTimerBanner();
+    renderTimerBanner(true);
   }, 1000);
-  renderTimerBanner();
 }
 
 function stopTimer(t) {
@@ -1780,7 +1781,7 @@ function discardTimer(t) {
   }
 }
 // ── Cross-tab timer banner ────────────────────
-function renderTimerBanner() {
+function renderTimerBanner(timeOnly = false) {
   const banner = document.getElementById('timer-banner');
   const active = [0, 1].filter(t => timers[t].running || timers[t].paused);
 
@@ -1790,6 +1791,16 @@ function renderTimerBanner() {
     return;
   }
 
+  // Time-only update: just patch the time span in-place, skip innerHTML rebuild
+  if (timeOnly && banner.classList.contains('visible')) {
+    active.forEach(t => {
+      const el = document.getElementById('banner-time-' + t);
+      if (el) el.textContent = fmtElapsed(getElapsedMs(t));
+    });
+    return;
+  }
+
+  // Full rebuild (on structural changes: start/stop/pause/tab switch)
   banner.classList.add('visible');
   banner.innerHTML = active.map(t => {
     const ts       = timers[t];
@@ -1804,7 +1815,7 @@ function renderTimerBanner() {
       <div class="banner-dot ${isPaused ? 'paused' : 'running'}"></div>
       <span class="banner-proj">T${t + 1} · ${proj.name}</span>
       ${task ? `<span class="banner-sep">—</span><span class="banner-task">${task}</span>` : '<span class="banner-task"></span>'}
-      <span class="banner-time ${isPaused ? 'paused' : ''}">${elapsed}</span>
+      <span class="banner-time ${isPaused ? 'paused' : ''}" id="banner-time-${t}">${elapsed}</span>
       <div class="banner-btns">
         ${toggleBtn}
         <button class="btn-banner stop" onclick="stopTimer(${t})">■ Log</button>
@@ -1860,10 +1871,12 @@ function switchTab(tab) {
 
 // ── Utilization helpers ───────────────────────
 function calcUtil(entries) {
-  const total    = entries.reduce((s, e) => s + e.minutes, 0);
-  const billable = entries.filter(e => e.billable).reduce((s, e) => s + e.minutes, 0);
-  if (!total) return null;
-  return Math.round(billable / total * 100);
+  let total = 0, billable = 0;
+  for (const e of entries) {
+    total += e.minutes;
+    if (e.billable) billable += e.minutes;
+  }
+  return total ? Math.round(billable / total * 100) : null;
 }
 
 function utilClass(pct) {
@@ -1878,19 +1891,20 @@ function utilClass(pct) {
 // ── Meters ────────────────────────────────────
 function renderDailyMeter() {
   const GOAL_MINS = (state.settings?.dailyTarget ?? 8) * 60;
-  const logged = state.log
-    .filter(e => e.date === todayKey())
-    .reduce((sum, e) => sum + e.minutes, 0);
+  const today     = todayKey();
+  const todayLog  = state.log.filter(e => e.date === today);
+  const logged    = todayLog.reduce((sum, e) => sum + e.minutes, 0);
   const pct  = Math.min(logged / GOAL_MINS * 100, 100);
   const over = logged >= GOAL_MINS;
 
-  const fill   = document.getElementById('daily-meter-fill');
-  const bubble = document.getElementById('daily-meter-bubble');
-  const loggedEl = document.getElementById('daily-meter-logged');
+  const fill      = document.getElementById('daily-meter-fill');
+  const bubble    = document.getElementById('daily-meter-bubble');
+  const loggedEl  = document.getElementById('daily-meter-logged');
+  const loggedFmt = logged ? fmtMins(logged) : '0m';
 
   fill.style.width = pct + '%';
   fill.classList.toggle('over', over);
-  loggedEl.textContent = fmtMins(logged) === '—' ? '0m' : fmtMins(logged);
+  loggedEl.textContent = loggedFmt;
   loggedEl.classList.toggle('over', over);
 
   if (pct > 8) {
@@ -1900,10 +1914,9 @@ function renderDailyMeter() {
     bubble.style.display = 'none';
   }
 
-  // Utilization
-  const todayLog = state.log.filter(e => e.date === todayKey());
-  const util     = calcUtil(todayLog);
-  const utilEl   = document.getElementById('daily-util-pct');
+  // Utilization — reuse todayLog already computed above
+  const util   = calcUtil(todayLog);
+  const utilEl = document.getElementById('daily-util-pct');
   utilEl.textContent = util !== null ? util + '%' : '—';
   utilEl.className   = 'util-pct ' + utilClass(util);
 }
@@ -2762,6 +2775,11 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(err => {
       console.warn('SW registration failed:', err);
     });
+  });
+
+  // When a new SW takes control (after a deploy), reload to get fresh files
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    window.location.reload();
   });
 }
 

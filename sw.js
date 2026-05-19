@@ -39,6 +39,26 @@ self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   if (!url.protocol.startsWith('http')) return;
 
+  // Navigation requests (index.html): network-first so deploys are
+  // picked up immediately; fall back to cache only when offline.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then(res => {
+          if (res && res.status === 200) {
+            const clone = res.clone();
+            caches.open(CACHE).then(c => c.put(event.request, clone));
+          }
+          return res;
+        })
+        .catch(() =>
+          caches.match('./index.html')
+            .then(fb => fb || new Response('Offline — open when connected to cache the app.', { status: 503 }))
+        )
+    );
+    return;
+  }
+
   // Google Fonts: network-first, cache fallback
   if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
     event.respondWith(
@@ -58,7 +78,7 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // App shell: cache-first, network fallback
+  // All other assets (icons, manifest): cache-first, network fallback
   event.respondWith(
     caches.match(event.request)
       .then(cached => {
@@ -71,13 +91,7 @@ self.addEventListener('fetch', event => {
             }
             return res;
           })
-          .catch(() => {
-            if (event.request.mode === 'navigate') {
-              return caches.match('./index.html')
-                .then(fb => fb || new Response('Offline', { status: 503 }));
-            }
-            return new Response('', { status: 408 });
-          });
+          .catch(() => new Response('', { status: 408 }));
       })
       .catch(() => new Response('', { status: 500 }))
   );

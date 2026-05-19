@@ -10,8 +10,8 @@ A lightweight, privacy-first time tracking Progressive Web App built for profess
 Run two independent timers side by side. Starting one automatically pauses the other, so switching between tasks requires a single click. Each timer supports pause, resume, discard (with two-click confirmation), and survives a browser refresh or accidental close — elapsed time is restored on reload.
 
 ### Flexible Logging
-- **Round-up billing** — all entries round up to the nearest 15-minute increment
-- **Manual entries** — add, edit, or delete log entries for any day of the current week
+- **Threshold-based rounding** — entries round to the nearest 15-minute increment with a 5-minute grace: ≤5 min over a boundary rounds down, >5 min rounds up
+- **Manual entries** — add, edit, or delete log entries for any day of the current or previous week
 - **Task notes** — capture what you were working on alongside each time entry
 - **Task autocomplete** — suggestions drawn from a persistent cross-week history as you type
 - **Timezone-safe** — entries are stamped with local date, not UTC, so late-evening work always lands on the correct day
@@ -21,7 +21,7 @@ Run two independent timers side by side. Starting one automatically pauses the o
 | Tab | What it shows |
 |---|---|
 | **Timers** | Active timers, configurable daily progress meter, billable utilization |
-| **Log** | Individual entries for any day, sorted oldest-to-newest, with add / edit / delete / copy |
+| **Log** | Individual entries for any day of the current or previous week, sorted oldest-to-newest, with add / edit / delete / copy |
 | **Daily Summary** | Entries grouped by project, Internal-first then A–Z, with decimal hours, day total, task copy, and PSA logged checkboxes |
 | **Weekly Summary** | All projects Sun–Sat (including those with no entries), 40-hour progress meter, weekly utilization, per-project targets |
 
@@ -58,7 +58,11 @@ Autocomplete suggestions persist across weekly resets in a dedicated history sto
 - **Billable utilization target** — controls color thresholds across all tabs (default 80%)
 - **Per-project weekly targets** — set per project in Settings; progress tracked in the Weekly Summary
 
-### Light & Dark Mode
+### Previous Week View
+A week navigation bar on the Log, Daily Summary, and Weekly Summary tabs lets you browse the previous week's data. Entries from both the current and previous week are retained in storage, so missed PSA entries can be reviewed and marked off without a CSV export.
+
+### Auto-Refresh on Deploy
+The service worker uses a network-first strategy for the main HTML document, so new deployments are picked up automatically on the next page visit. If the service worker itself updates, the page reloads silently to activate the new version.
 Toggle in Settings. Automatically follows OS preference on first load. Choice persists across sessions.
 
 ### Data & Privacy
@@ -169,7 +173,7 @@ xdg-open index.html      # Linux
 
 | Data | Scope |
 |---|---|
-| Log entries | Current week (Sun–Sat); clears on weekly rollover |
+| Log entries | Current week + previous week (2 weeks); older entries cleared on load |
 | Task autocomplete history | Indefinitely, up to 300 entries; survives weekly reset |
 | Active timer state | Until stopped or discarded; restores after page reload |
 | PSA logged status | Current week; clears on Reset Week |

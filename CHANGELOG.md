@@ -5,6 +5,52 @@ Versions are listed from newest to oldest.
 
 ---
 
+## v1.13.0 — Auto-Refresh on Deploy
+
+### Added
+- **Network-first navigation strategy** — the service worker now fetches `index.html` from the network on every page load when online, falling back to cache only when offline; previously the cached version was always served, requiring a force-refresh to see new deployments
+- **`controllerchange` auto-reload** — when a new service worker takes over the page after a deployment, the app reloads automatically to activate the fresh files; no manual intervention required
+
+---
+
+## v1.12.0 — Performance Optimizations
+
+### Changed
+- **`calcUtil` single-pass** — billable utilization calculation previously made two passes over the entries array (one `reduce` for total, one `filter` + `reduce` for billable); replaced with a single `for...of` loop that accumulates both values simultaneously
+- **`renderDailyMeter` single filter** — the daily meter previously filtered `state.log` twice with the same predicate and called `todayKey()` (which creates a new `Date` object) three times; now filters once, stores the result, and reuses it for both the logged-time calculation and the utilization chip; `fmtMins()` also called once instead of twice
+- **`defaultDayForOffset` O(n) lookup** — previously used `days.filter(d => state.log.some(e => e.date === d))` which scanned the full log for each of the 7 days (O(n × 7)); replaced with a `Set` built once in O(n) so each day lookup is O(1)
+- **`renderTimerBanner` time-only updates** — the banner previously rebuilt its entire `innerHTML` every second while a timer was running; now accepts a `timeOnly` flag: tick intervals update only the time element's `textContent` via a stable element ID; full rebuilds happen only on structural changes (start, stop, pause, resume, tab switch)
+- **Removed redundant `renderTimerBanner()` call in `resumeTimer`** — the banner was called explicitly after starting the interval, then called again within one second by the interval itself; the explicit call before the interval now handles the structural update, and the interval handles time-only updates from then on
+
+---
+
+## v1.11.0 — Modified Rounding Logic
+
+### Changed
+- **Quarter-hour rounding changed from ceiling to threshold-based** — previously all entries always rounded up (ceiling) to the next 15-minute increment; now: if the elapsed time is 5 minutes or fewer over the nearest 15-minute boundary, it rounds down; if more than 5 minutes over, it rounds up; this applies to both timer stops and manually entered durations in the Add/Edit Entry modal
+
+| Actual time | Previously logged as | Now logged as |
+|---|---|---|
+| 1 second – 5:00 | 15 min | 0 min (not logged) |
+| 5:01 – 15:00 | 15 min | 15 min |
+| 15:01 – 20:00 | 30 min | 15 min |
+| 20:01 – 30:00 | 30 min | 30 min |
+| 30:01 – 35:00 | 45 min | 30 min |
+| 35:01 – 45:00 | 45 min | 45 min |
+
+---
+
+## v1.10.0 — Previous Week View
+
+### Added
+- **Week navigation bar** — a navigation strip below the tab row on the Log, Daily Summary, and Weekly Summary tabs shows the current week range with ← Previous Week / Current Week → buttons and a color-coded badge (green = current, amber = previous); hidden on the Timers tab
+- **Two-week data retention** — `loadState` now retains entries from both the current and previous Sun–Sat week instead of only the current week; entries older than two weeks are discarded on load
+- **Previous week browsing** — the day-filter pills on the Log and Daily Summary tabs show the selected week's days; the Weekly Summary table reflects the selected week; the "today" column highlight is suppressed when viewing a previous week
+- **Previous week entry editing** — the Add/Edit Entry modal's day dropdown now includes all 14 days (previous week + current week), with "(prev)" labels on previous week days
+- **Week-specific Reset** — the Reset Week action now clears only the week currently being viewed (current or previous), with a confirmation message that names which week will be cleared
+
+---
+
 ## v1.9.0 — Navigation Update
 
 ### Changed
@@ -113,7 +159,7 @@ Versions are listed from newest to oldest.
 - **Modal backdrop** — navy-tinted overlay for all modals
 
 ### Changed
-- **Rounding changed from nearest to ceiling** — previously used `Math.round()` for quarter-hour increments; changed to `Math.ceil()` so all entries round up; a 1-second task logs as 15 minutes, never rounds down
+- **Rounding changed from nearest to ceiling** — previously used `Math.round()` for quarter-hour increments; changed to `Math.ceil()` so all entries round up *(later revised in v1.11.0 to threshold-based rounding)*
 
 ---
 
