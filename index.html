@@ -979,6 +979,34 @@
   [data-theme="dark"] .util-chip-pct.mid         { color: #d4a017; }
   [data-theme="dark"] .util-pct.mid              { color: #d4a017; }
 
+  /* ── Restore banner ── */
+  .restore-banner {
+    display: none;
+    align-items: center; justify-content: space-between;
+    gap: 12px;
+    padding: 10px 16px;
+    background: var(--amber-bg);
+    border-bottom: 0.5px solid rgba(133,79,11,0.2);
+  }
+  .restore-banner.visible { display: flex; }
+  .restore-banner-msg {
+    font-size: 13px; color: var(--amber); font-weight: 500; flex: 1;
+  }
+  .restore-banner-btns { display: flex; gap: 8px; }
+  .btn-restore-action {
+    height: 28px; padding: 0 12px;
+    border-radius: var(--radius-xs);
+    font-family: var(--sans); font-size: 12px; font-weight: 500;
+    cursor: pointer; border: 0.5px solid rgba(133,79,11,0.35);
+    background: rgba(133,79,11,0.08); color: var(--amber);
+    transition: background 0.12s;
+  }
+  .btn-restore-action:hover { background: rgba(133,79,11,0.18); }
+  .btn-restore-action.primary {
+    background: var(--amber); color: #fff; border-color: transparent;
+  }
+  .btn-restore-action.primary:hover { opacity: 0.85; }
+
   /* ── Settings drawer ── */
   .settings-overlay {
     display: none;
@@ -1112,6 +1140,15 @@
     <button class="btn-nav" onclick="exportCSV()">Export CSV</button>
     <button class="btn-nav" onclick="location.reload()">↺ Refresh</button>
     <button class="btn-nav" onclick="openSettings()" title="Settings" style="font-size:15px;padding:0 9px;">⚙</button>
+  </div>
+</div>
+
+<!-- Restore from backup banner (shown when localStorage is empty) -->
+<div class="restore-banner" id="restore-banner">
+  <span class="restore-banner-msg">📂 No local data found — a backup file is linked. Restore your data?</span>
+  <div class="restore-banner-btns">
+    <button class="btn-restore-action primary" onclick="restoreFromBackup()">Restore</button>
+    <button class="btn-restore-action" onclick="hideBanner()">Dismiss</button>
   </div>
 </div>
 
@@ -1409,6 +1446,11 @@
       </div>
 
       <div class="settings-section">
+        <div class="settings-section-title">Backup</div>
+        <div id="backup-section-content"></div>
+      </div>
+
+      <div class="settings-section">
         <div class="settings-section-title">Targets</div>
         <div class="toggle-row" style="justify-content:space-between;">
           <span class="toggle-label">Billable utilization target</span>
@@ -1505,7 +1547,9 @@ const timers = [0, 1].map(() => ({
 let activeTab         = 'timer';
 let logDayFilter      = null;
 let dailySummaryFilter= null;
-let weekOffset        = 0;   // 0 = current week, -1 = previous week
+let weekOffset        = 0;
+let backupHandle      = null;   // cached file handle (also stored in IndexedDB)
+let backupSaveTimer   = null;   // debounce timer for auto-save
 
 // ── Date helpers ──────────────────────────────
 function localDateKey(d) {
@@ -1570,6 +1614,7 @@ function saveState() {
     settings: state.settings, psaLogged: state.psaLogged,
     taskHistory: state.taskHistory,
   }));
+  triggerAutoBackup();
 }
 
 // ── Formatting ────────────────────────────────
@@ -2519,6 +2564,7 @@ function init() {
   document.getElementById('log-count').textContent = todayEntries().length;
   renderDailyMeter();
   applyTimerUI(0, 'idle'); applyTimerUI(1, 'idle');
+  checkForBackupRestore();
 }
 
 // init() called below after all functions are defined
@@ -2655,6 +2701,7 @@ function hideAC(t) {
 // ── Settings drawer ───────────────────────────
 function openSettings() {
   renderSettingsProjects();
+  renderBackupSection();
   const util  = document.getElementById('util-target-input');
   if (util)  util.value  = state.settings?.utilTarget  ?? 80;
   const daily = document.getElementById('daily-target-input');
@@ -2768,6 +2815,260 @@ function loadTheme() {
 
 // ── Start ─────────────────────────────────────
 init();
+
+// ── File System Backup ────────────────────────
+const BACKUP_META_KEY = 'ett_backup_meta';
+const IDB_DB    = 'easy_time_tracker';
+const IDB_STORE = 'fs_handles';
+
+// IndexedDB helpers
+function openIDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_DB, 1);
+    req.onupgradeneeded = e => e.target.result.createObjectStore(IDB_STORE);
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+async function idbGet(key) {
+  const db = await openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readonly');
+    const req = tx.objectStore(IDB_STORE).get(key);
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+async function idbSet(key, val) {
+  const db = await openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    const req = tx.objectStore(IDB_STORE).put(val, key);
+    req.onsuccess = () => resolve();
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+async function idbDelete(key) {
+  const db = await openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    const req = tx.objectStore(IDB_STORE).delete(key);
+    req.onsuccess = () => resolve();
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+
+// Backup metadata (filename + last saved time, kept in localStorage)
+function loadBackupMeta() {
+  try { const r = localStorage.getItem(BACKUP_META_KEY); return r ? JSON.parse(r) : null; }
+  catch { return null; }
+}
+function saveBackupMeta(meta) {
+  localStorage.setItem(BACKUP_META_KEY, JSON.stringify(meta));
+}
+
+// Build the JSON payload
+function buildBackupData() {
+  return JSON.stringify({
+    version:    2,
+    savedAt:    new Date().toISOString(),
+    state: {
+      projects:      state.projects,
+      nextId:        state.nextId,
+      activeProject: state.activeProject,
+      log:           state.log,
+      settings:      state.settings,
+      psaLogged:     state.psaLogged,
+      taskHistory:   state.taskHistory,
+    },
+  }, null, 2);
+}
+
+// Write to the linked file
+async function writeBackupFile(handle) {
+  const writable = await handle.createWritable();
+  await writable.write(buildBackupData());
+  await writable.close();
+  const meta = { fileName: handle.name, lastSaved: new Date().toISOString() };
+  saveBackupMeta(meta);
+  return meta;
+}
+
+// Debounced auto-save called from saveState()
+function triggerAutoBackup() {
+  if (!backupHandle) return;
+  clearTimeout(backupSaveTimer);
+  backupSaveTimer = setTimeout(async () => {
+    try {
+      const perm = await backupHandle.queryPermission({ mode: 'readwrite' });
+      if (perm !== 'granted') return; // Don't prompt mid-session
+      await writeBackupFile(backupHandle);
+      renderBackupSection();
+    } catch (e) { console.warn('[Backup] Auto-save failed:', e); }
+  }, 2000);
+}
+
+// Link a new backup file (user picks location)
+async function linkBackupFile() {
+  if (!('showSaveFilePicker' in window)) {
+    alert('File System Access API requires Chrome or Edge.');
+    return;
+  }
+  try {
+    const handle = await window.showSaveFilePicker({
+      suggestedName: 'easy-time-tracker-backup.json',
+      types: [{ description: 'JSON backup', accept: { 'application/json': ['.json'] } }],
+    });
+    await writeBackupFile(handle);
+    backupHandle = handle;
+    await idbSet('backupHandle', handle);
+    renderBackupSection();
+  } catch (e) {
+    if (e.name !== 'AbortError') console.warn('[Backup] Link failed:', e);
+  }
+}
+
+// Manually trigger a save (requests permission if needed)
+async function saveBackupNow() {
+  if (!backupHandle) return;
+  try {
+    const perm = await backupHandle.requestPermission({ mode: 'readwrite' });
+    if (perm !== 'granted') return;
+    await writeBackupFile(backupHandle);
+    renderBackupSection();
+  } catch (e) { console.warn('[Backup] Save failed:', e); }
+}
+
+// Restore state from the linked backup file
+async function restoreFromBackup() {
+  const handle = backupHandle;
+  if (!handle) return;
+  try {
+    const perm = await handle.requestPermission({ mode: 'read' });
+    if (perm !== 'granted') return;
+    const file = await handle.getFile();
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if (!data.state) throw new Error('Invalid backup format');
+    const s = data.state;
+    if (s.projects)      state.projects      = s.projects;
+    if (s.nextId)        state.nextId        = s.nextId;
+    if (s.activeProject) state.activeProject = s.activeProject;
+    if (s.log)           state.log           = s.log;
+    if (s.settings)      state.settings      = { ...state.settings, ...s.settings };
+    if (s.psaLogged)     state.psaLogged     = s.psaLogged;
+    if (s.taskHistory)   state.taskHistory   = s.taskHistory;
+    saveState();
+    loadTheme();
+    populateSelects();
+    renderDailyMeter();
+    updateWeekNav();
+    document.getElementById('log-count').textContent = todayEntries().length;
+    if (activeTab === 'log')     renderLogTab();
+    if (activeTab === 'daily')   renderDailySummary();
+    if (activeTab === 'summary') renderSummary();
+    hideBanner();
+    renderBackupSection();
+    alert(`Restored ${state.log.length} log entr${state.log.length === 1 ? 'y' : 'ies'} and ${state.projects.length} projects from backup (saved ${new Date(data.savedAt).toLocaleString()}).`);
+  } catch (e) {
+    console.warn('[Backup] Restore failed:', e);
+    alert('Could not read backup file. It may be corrupted or in an unexpected format.');
+  }
+}
+
+// Re-request permission after a page reload (user must click)
+async function reconnectBackup() {
+  if (!backupHandle) return;
+  try {
+    const perm = await backupHandle.requestPermission({ mode: 'readwrite' });
+    if (perm === 'granted') { await writeBackupFile(backupHandle); renderBackupSection(); }
+  } catch (e) { console.warn('[Backup] Reconnect failed:', e); }
+}
+
+// Unlink the backup file
+async function unlinkBackupFile() {
+  backupHandle = null;
+  clearTimeout(backupSaveTimer);
+  await idbDelete('backupHandle');
+  localStorage.removeItem(BACKUP_META_KEY);
+  renderBackupSection();
+}
+
+// Render the backup section in Settings
+function renderBackupSection() {
+  const el = document.getElementById('backup-section-content');
+  if (!el) return;
+
+  if (!('showSaveFilePicker' in window)) {
+    el.innerHTML = `<div style="font-size:12px;color:var(--text-3);line-height:1.5;">Requires Chrome or Edge — not supported in this browser.</div>`;
+    return;
+  }
+
+  const meta = loadBackupMeta();
+
+  if (!backupHandle || !meta) {
+    el.innerHTML = `
+      <div style="font-size:12px;color:var(--text-3);margin-bottom:8px;line-height:1.5;">
+        Link a local file to automatically back up your data whenever you log time. Survives browser history clears.
+      </div>
+      <button class="btn-add-proj" onclick="linkBackupFile()">🔗 Link backup file</button>`;
+    return;
+  }
+
+  // Render linked state; check permission asynchronously
+  const lastSaved = meta.lastSaved
+    ? new Date(meta.lastSaved).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+      ' at ' + new Date(meta.lastSaved).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : 'never';
+
+  // Placeholder while permission check runs
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+      <span style="font-size:13px;color:var(--text-3);">…</span>
+      <span style="font-size:13px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${meta.fileName}">${meta.fileName}</span>
+    </div>
+    <div style="font-size:11px;color:var(--text-3);margin-bottom:8px;">Last saved: ${lastSaved}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      <button class="btn-add-proj" onclick="saveBackupNow()">Save now</button>
+      <button class="btn-add-proj" style="background:transparent;color:var(--hyland-navy);border:0.5px solid var(--border-med);" onclick="restoreFromBackup()">Restore</button>
+      <button class="btn-add-proj" style="background:transparent;color:var(--red);border:0.5px solid rgba(155,35,53,0.3);" onclick="unlinkBackupFile()">Unlink</button>
+    </div>`;
+
+  backupHandle.queryPermission({ mode: 'readwrite' }).then(perm => {
+    const statusDot = perm === 'granted' ? '✓' : '⚠';
+    const statusColor = perm === 'granted' ? 'var(--green)' : 'var(--amber)';
+    const dotEl = el.querySelector('span[style*="text-3"]');
+    if (dotEl) { dotEl.textContent = statusDot; dotEl.style.color = statusColor; }
+    if (perm === 'prompt') {
+      const note = el.querySelector('div[style*="text-3"]');
+      if (note) { note.textContent = 'Permission needed after page reload — click Reconnect'; note.style.color = 'var(--amber)'; }
+      const btns = el.querySelector('div[style*="flex-wrap"]');
+      if (btns) btns.innerHTML = `
+        <button class="btn-add-proj" style="background:var(--amber);" onclick="reconnectBackup()">Reconnect</button>
+        <button class="btn-add-proj" style="background:transparent;color:var(--red);border:0.5px solid rgba(155,35,53,0.3);" onclick="unlinkBackupFile()">Unlink</button>`;
+    }
+  }).catch(() => {});
+}
+
+// Restore banner visibility
+function showRestoreBanner() {
+  document.getElementById('restore-banner')?.classList.add('visible');
+}
+function hideBanner() {
+  document.getElementById('restore-banner')?.classList.remove('visible');
+}
+
+// On load: check for a stored handle; show restore banner if localStorage is empty
+async function checkForBackupRestore() {
+  if (!('showSaveFilePicker' in window)) return;
+  try {
+    const handle = await idbGet('backupHandle');
+    if (!handle) return;
+    backupHandle = handle;
+    if (!localStorage.getItem(STORAGE_KEY)) showRestoreBanner();
+    renderBackupSection();
+  } catch (e) { console.warn('[Backup] Init check failed:', e); }
+}
 
 // ── PWA: Service Worker ───────────────────────
 if ('serviceWorker' in navigator) {

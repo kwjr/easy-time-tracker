@@ -58,6 +58,9 @@ Autocomplete suggestions persist across weekly resets in a dedicated history sto
 - **Billable utilization target** — controls color thresholds across all tabs (default 80%)
 - **Per-project weekly targets** — set per project in Settings; progress tracked in the Weekly Summary
 
+### File System Backup
+Link a local JSON file as an automatic backup target (Chrome / Edge only). Once linked, the app writes your full state — log entries, projects, settings, PSA status, and task history — to the file automatically 2 seconds after any data change. If localStorage is cleared, a restore banner appears on next load offering to recover from the backup file. Manage the backup link in Settings → Backup.
+
 ### Previous Week View
 A week navigation bar on the Log, Daily Summary, and Weekly Summary tabs lets you browse the previous week's data. Entries from both the current and previous week are retained in storage, so missed PSA entries can be reviewed and marked off without a CSV export.
 
@@ -176,11 +179,13 @@ xdg-open index.html      # Linux
 | Log entries | Current week + previous week (2 weeks); older entries cleared on load |
 | Task autocomplete history | Indefinitely, up to 300 entries; survives weekly reset |
 | Active timer state | Until stopped or discarded; restores after page reload |
-| PSA logged status | Current week; clears on Reset Week |
+| PSA logged status | Per week; clears on Reset Week for that week |
 | Project list, names & targets | Indefinitely |
 | Settings (targets, theme) | Indefinitely |
+| File backup (optional) | Persists until you unlink or delete the file; survives browser history clears |
 
 - **Clearing entries** — "Clear this day" (Log tab) or "Reset week" (Weekly Summary)
+- **Optional backup** — link a local JSON file in Settings → Backup (Chrome / Edge); the app writes to it automatically on every save
 - **No cloud sync** — data is local to the browser and device it was entered on
 
 ---

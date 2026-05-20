@@ -5,6 +5,32 @@ Versions are listed from newest to oldest.
 
 ---
 
+## v1.14.0 — File System Backup
+
+### Added
+- **File System Backup** — Settings → Backup section (Chrome / Edge only) with the following capabilities:
+  - **Link backup file** — opens a Save File picker so you can choose or create a local JSON file (`easy-time-tracker-backup.json` by default); the current state is written immediately on link
+  - **Auto-save** — the backup file is written automatically 2 seconds after any data change (debounced), silently and without blocking the UI; the auto-save is skipped if write permission has not been granted for the current session
+  - **Save now** — manual save button; requests write permission if needed
+  - **Restore** — reads the linked backup file and restores all state: projects, log entries, settings, PSA logged status, and task autocomplete history; shows a confirmation with entry count and save timestamp
+  - **Unlink** — removes the file association and clears backup metadata
+  - **Reconnect** — re-requests write permission after a page reload (browsers revoke file write access on navigation; a user gesture is required to re-grant it)
+  - **Restore banner** — if localStorage is cleared and a backup handle is stored, an amber banner appears at the top of the app on next load offering a one-click restore
+  - **Permission status indicator** — the backup section shows ✓ (permission granted) or ⚠ (reconnect needed) next to the linked filename
+- **IndexedDB handle storage** — file handles are persisted in IndexedDB (not localStorage) since `FileSystemFileHandle` objects cannot be serialized to JSON; this allows the link to survive page reloads
+- **Graceful degradation** — the Backup section shows a "Requires Chrome or Edge" message when the File System Access API is unavailable; all backup functions are no-ops in unsupported browsers
+
+### Backup file contents
+The JSON backup includes:
+- All projects with names, billable types, and weekly targets
+- Current and previous week's log entries
+- App settings (daily target, utilization target)
+- PSA logged status
+- Task autocomplete history (up to 300 entries)
+- Save timestamp and schema version
+
+---
+
 ## v1.13.0 — Auto-Refresh on Deploy
 
 ### Added
